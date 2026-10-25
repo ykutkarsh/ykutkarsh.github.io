@@ -20,6 +20,7 @@ interfaces and evaluation requirements.
 | `main.py` | Runs the Phase 1 demonstration. |
 | `aab/brain/` | Provider-neutral reasoning, curiosity, and reversible decision selection. |
 | `aab/autonomy/` | Bounded control loop, task history, lifecycle hooks, and resource limits. |
+| `aab/research/` | Read-only public search, bounded page retrieval, source assessment, and citations. |
 | `tests/` | Verifies learning, cognition, evaluation, and persistence. |
 
 The storage interface is intentionally independent of the model so later

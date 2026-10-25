@@ -60,6 +60,25 @@ class ExperienceStore:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS discoveries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                claim TEXT NOT NULL,
+                status TEXT NOT NULL,
+                confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+                conflict_group TEXT,
+                citations_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS citations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                discovery_id INTEGER NOT NULL,
+                url TEXT NOT NULL,
+                title TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL,
+                quality REAL NOT NULL CHECK (quality >= 0 AND quality <= 1),
+                reasons_json TEXT NOT NULL,
+                FOREIGN KEY (discovery_id) REFERENCES discoveries(id)
+            );
             """
         )
         self._connection.commit()
@@ -175,6 +194,50 @@ class ExperienceStore:
 
     def task_count(self) -> int:
         return int(self._connection.execute("SELECT COUNT(*) FROM autonomy_tasks").fetchone()[0])
+
+    def record_discovery(
+        self,
+        claim: str,
+        status: str,
+        confidence: float,
+        conflict_group: str | None,
+        citations: tuple[str, ...],
+    ) -> int:
+        import json
+
+        cursor = self._connection.execute(
+            """
+            INSERT INTO discoveries
+                (claim, status, confidence, conflict_group, citations_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (claim, status, confidence, conflict_group, json.dumps(citations)),
+        )
+        self._connection.commit()
+        return int(cursor.lastrowid)
+
+    def record_citations(self, discovery_id: int, documents: list[Any], assessments: list[Any]) -> None:
+        import json
+
+        self._connection.executemany(
+            """
+            INSERT INTO citations
+                (discovery_id, url, title, retrieved_at, quality, reasons_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    discovery_id,
+                    document.url,
+                    document.title,
+                    document.retrieved_at,
+                    assessment.quality,
+                    json.dumps(assessment.reasons),
+                )
+                for document, assessment in zip(documents, assessments)
+            ],
+        )
+        self._connection.commit()
 
     def close(self) -> None:
         self._connection.close()
