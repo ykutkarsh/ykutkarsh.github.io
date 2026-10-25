@@ -32,6 +32,25 @@ class ExperienceStore:
             )
             """
         )
+        self._connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS research_questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question TEXT NOT NULL UNIQUE,
+                objective TEXT NOT NULL,
+                rationale TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'proposed',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS decisions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                objective TEXT NOT NULL,
+                selected_action TEXT NOT NULL,
+                rationale TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
         self._connection.commit()
 
     def record(
@@ -82,6 +101,36 @@ class ExperienceStore:
         return int(
             self._connection.execute("SELECT COUNT(*) FROM experiences").fetchone()[0]
         )
+
+    def record_question(self, question: str, objective: str, rationale: str) -> int:
+        cursor = self._connection.execute(
+            "INSERT OR IGNORE INTO research_questions (question, objective, rationale) VALUES (?, ?, ?)",
+            (question, objective, rationale),
+        )
+        self._connection.commit()
+        return int(cursor.lastrowid or self._connection.execute(
+            "SELECT id FROM research_questions WHERE question = ?", (question,)
+        ).fetchone()[0])
+
+    def question_completed(self, question: str) -> bool:
+        row = self._connection.execute(
+            "SELECT status FROM research_questions WHERE question = ?", (question,)
+        ).fetchone()
+        return row is not None and row["status"] == "completed"
+
+    def question_exists(self, question: str) -> bool:
+        row = self._connection.execute(
+            "SELECT 1 FROM research_questions WHERE question = ?", (question,)
+        ).fetchone()
+        return row is not None
+
+    def record_decision(self, objective: str, selected_action: str, rationale: str) -> int:
+        cursor = self._connection.execute(
+            "INSERT INTO decisions (objective, selected_action, rationale) VALUES (?, ?, ?)",
+            (objective, selected_action, rationale),
+        )
+        self._connection.commit()
+        return int(cursor.lastrowid)
 
     def close(self) -> None:
         self._connection.close()
