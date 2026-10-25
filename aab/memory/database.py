@@ -49,6 +49,62 @@ class ExperienceStore:
                 rationale TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS autonomy_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_key TEXT NOT NULL UNIQUE,
+                objective TEXT NOT NULL,
+                question TEXT NOT NULL,
+                rationale TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                outcome TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS discoveries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                claim TEXT NOT NULL,
+                status TEXT NOT NULL,
+                confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+                conflict_group TEXT,
+                citations_json TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS citations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                discovery_id INTEGER NOT NULL,
+                url TEXT NOT NULL,
+                title TEXT NOT NULL,
+                retrieved_at TEXT NOT NULL,
+                quality REAL NOT NULL CHECK (quality >= 0 AND quality <= 1),
+                reasons_json TEXT NOT NULL,
+                FOREIGN KEY (discovery_id) REFERENCES discoveries(id)
+            );
+            CREATE TABLE IF NOT EXISTS learning_predictions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task TEXT NOT NULL,
+                strategy TEXT NOT NULL,
+                predicted TEXT NOT NULL,
+                confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS learning_outcomes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prediction_id INTEGER NOT NULL UNIQUE,
+                actual TEXT NOT NULL,
+                correct INTEGER NOT NULL CHECK (correct IN (0, 1)),
+                error_type TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (prediction_id) REFERENCES learning_predictions(id)
+            );
+            CREATE TABLE IF NOT EXISTS learning_benchmarks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                strategy TEXT NOT NULL,
+                total INTEGER NOT NULL,
+                correct INTEGER NOT NULL,
+                accuracy REAL NOT NULL CHECK (accuracy >= 0 AND accuracy <= 1),
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
         self._connection.commit()
@@ -131,6 +187,151 @@ class ExperienceStore:
         )
         self._connection.commit()
         return int(cursor.lastrowid)
+
+    def create_task(
+        self, task_key: str, objective: str, question: str, rationale: str
+    ) -> int | None:
+        cursor = self._connection.execute(
+            """
+            INSERT OR IGNORE INTO autonomy_tasks
+                (task_key, objective, question, rationale)
+            VALUES (?, ?, ?, ?)
+            """,
+            (task_key, objective, question, rationale),
+        )
+        self._connection.commit()
+        if cursor.rowcount == 0:
+            return None
+        return int(cursor.lastrowid)
+
+    def update_task_status(self, task_id: int, status: str, outcome: str | None = None) -> None:
+        allowed = {"pending", "running", "completed", "failed"}
+        if status not in allowed:
+            raise ValueError(f"status must be one of {sorted(allowed)}")
+        self._connection.execute(
+            """
+            UPDATE autonomy_tasks
+            SET status = ?, outcome = COALESCE(?, outcome), updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (status, outcome, task_id),
+        )
+        self._connection.commit()
+
+    def task_count(self) -> int:
+        return int(self._connection.execute("SELECT COUNT(*) FROM autonomy_tasks").fetchone()[0])
+
+    def record_discovery(
+        self,
+        claim: str,
+        status: str,
+        confidence: float,
+        conflict_group: str | None,
+        citations: tuple[str, ...],
+    ) -> int:
+        import json
+
+        cursor = self._connection.execute(
+            """
+            INSERT INTO discoveries
+                (claim, status, confidence, conflict_group, citations_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (claim, status, confidence, conflict_group, json.dumps(citations)),
+        )
+        self._connection.commit()
+        return int(cursor.lastrowid)
+
+    def record_citations(self, discovery_id: int, documents: list[Any], assessments: list[Any]) -> None:
+        import json
+
+        self._connection.executemany(
+            """
+            INSERT INTO citations
+                (discovery_id, url, title, retrieved_at, quality, reasons_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    discovery_id,
+                    document.url,
+                    document.title,
+                    document.retrieved_at,
+                    assessment.quality,
+                    json.dumps(assessment.reasons),
+                )
+                for document, assessment in zip(documents, assessments)
+            ],
+        )
+        self._connection.commit()
+
+    def record_prediction(self, task: str, strategy: str, predicted: str, confidence: float) -> int:
+        cursor = self._connection.execute(
+            """
+            INSERT INTO learning_predictions (task, strategy, predicted, confidence)
+            VALUES (?, ?, ?, ?)
+            """,
+            (task, strategy, predicted, confidence),
+        )
+        self._connection.commit()
+        return int(cursor.lastrowid)
+
+    def get_prediction(self, prediction_id: int) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT * FROM learning_predictions WHERE id = ?", (prediction_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def record_outcome(
+        self, prediction_id: int, actual: str, correct: bool, error_type: str | None
+    ) -> int:
+        cursor = self._connection.execute(
+            """
+            INSERT INTO learning_outcomes (prediction_id, actual, correct, error_type)
+            VALUES (?, ?, ?, ?)
+            """,
+            (prediction_id, actual, int(correct), error_type),
+        )
+        self._connection.commit()
+        return int(cursor.lastrowid)
+
+    def recurring_errors(self, minimum_count: int = 2) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            """
+            SELECT error_type, COUNT(*) AS occurrences
+            FROM learning_outcomes
+            WHERE correct = 0 AND error_type IS NOT NULL
+            GROUP BY error_type
+            HAVING COUNT(*) >= ?
+            ORDER BY occurrences DESC, error_type
+            """,
+            (minimum_count,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def record_benchmark(
+        self, name: str, strategy: str, total: int, correct: int, accuracy: float
+    ) -> int:
+        cursor = self._connection.execute(
+            """
+            INSERT INTO learning_benchmarks (name, strategy, total, correct, accuracy)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (name, strategy, total, correct, accuracy),
+        )
+        self._connection.commit()
+        return int(cursor.lastrowid)
+
+    def strategy_accuracy(self, strategy: str) -> float | None:
+        row = self._connection.execute(
+            """
+            SELECT SUM(correct) * 1.0 / SUM(total) AS accuracy
+            FROM learning_benchmarks
+            WHERE strategy = ?
+            """,
+            (strategy,),
+        ).fetchone()
+        return row["accuracy"] if row and row["accuracy"] is not None else None
 
     def close(self) -> None:
         self._connection.close()
