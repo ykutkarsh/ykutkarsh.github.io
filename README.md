@@ -25,6 +25,7 @@ interfaces and evaluation requirements.
 | `aab/learning/dataset.py` | Validates explicitly verified examples for controlled training. |
 | `aab/learning/fine_tuning.py` | Trains an isolated candidate copy of the current model. |
 | `aab/learning/model_registry.py` | Stores immutable checkpoint versions and gates candidate acceptance. |
+| `aab/brain/meta_reasoning.py` | Proposes and benchmarks data-only algorithm changes in temporary sandboxes with rollback. |
 | `tests/` | Verifies learning, cognition, evaluation, and persistence. |
 
 The storage interface is intentionally independent of the model so later
@@ -67,6 +68,12 @@ Phase 6 adds controlled self-training infrastructure: unverified examples are
 rejected, candidate weights are trained in a copy, checkpoints are versioned
 with metadata, and candidates are compared with a baseline on an independent
 evaluation set. No candidate automatically replaces the primary model.
+
+Phase 7 adds experimental self-improvement controls without self-modifying
+source code: proposals are restricted to allowed configuration keys, candidate
+experiments run in temporary directories, benchmark scores must improve before
+adoption, and rollback restores the accepted baseline. Resource limits and
+explicit failure handling prevent experiments from bypassing safety controls.
 
 Phase 5 adds experience-based evaluation without claiming unrestricted learning:
 predictions are compared with separately supplied outcomes, recurring errors are
