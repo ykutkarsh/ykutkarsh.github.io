@@ -49,6 +49,17 @@ class ExperienceStore:
                 rationale TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS autonomy_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_key TEXT NOT NULL UNIQUE,
+                objective TEXT NOT NULL,
+                question TEXT NOT NULL,
+                rationale TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                outcome TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
         self._connection.commit()
@@ -131,6 +142,39 @@ class ExperienceStore:
         )
         self._connection.commit()
         return int(cursor.lastrowid)
+
+    def create_task(
+        self, task_key: str, objective: str, question: str, rationale: str
+    ) -> int | None:
+        cursor = self._connection.execute(
+            """
+            INSERT OR IGNORE INTO autonomy_tasks
+                (task_key, objective, question, rationale)
+            VALUES (?, ?, ?, ?)
+            """,
+            (task_key, objective, question, rationale),
+        )
+        self._connection.commit()
+        if cursor.rowcount == 0:
+            return None
+        return int(cursor.lastrowid)
+
+    def update_task_status(self, task_id: int, status: str, outcome: str | None = None) -> None:
+        allowed = {"pending", "running", "completed", "failed"}
+        if status not in allowed:
+            raise ValueError(f"status must be one of {sorted(allowed)}")
+        self._connection.execute(
+            """
+            UPDATE autonomy_tasks
+            SET status = ?, outcome = COALESCE(?, outcome), updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (status, outcome, task_id),
+        )
+        self._connection.commit()
+
+    def task_count(self) -> int:
+        return int(self._connection.execute("SELECT COUNT(*) FROM autonomy_tasks").fetchone()[0])
 
     def close(self) -> None:
         self._connection.close()

@@ -19,6 +19,7 @@ interfaces and evaluation requirements.
 | `aab/memory/database.py` | Stores structured experiences in SQLite. |
 | `main.py` | Runs the Phase 1 demonstration. |
 | `aab/brain/` | Provider-neutral reasoning, curiosity, and reversible decision selection. |
+| `aab/autonomy/` | Bounded control loop, task history, lifecycle hooks, and resource limits. |
 | `tests/` | Verifies learning, cognition, evaluation, and persistence. |
 
 The storage interface is intentionally independent of the model so later
@@ -52,8 +53,10 @@ python -m pytest
 
 Phase 1 demonstrates measurable supervised learning and persistent experiment
 memory. Phase 2 adds offline structured reasoning, ranked question proposals,
-and configurable action scoring. It does not implement autonomous continuous
-operation, web research, fine-tuning, or self-modification.
+and configurable action scoring. Phase 3 adds bounded autonomous coordination
+with duplicate-task prevention, pause/resume hooks, shutdown, and finite
+resource limits. It does not implement web research, fine-tuning, or
+self-modification.
 
 The default `LocalMockProvider` is deterministic and requires no credentials.
 Future providers must read credentials from environment variables such as
