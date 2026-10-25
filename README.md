@@ -18,7 +18,8 @@ interfaces and evaluation requirements.
 | `aab/learning/training_pipeline.py` | Trains, evaluates, and records one experiment. |
 | `aab/memory/database.py` | Stores structured experiences in SQLite. |
 | `main.py` | Runs the Phase 1 demonstration. |
-| `tests/` | Verifies learning, evaluation, and persistence. |
+| `aab/brain/` | Provider-neutral reasoning, curiosity, and reversible decision selection. |
+| `tests/` | Verifies learning, cognition, evaluation, and persistence. |
 
 The storage interface is intentionally independent of the model so later
 semantic and episodic memory implementations can be added without coupling
@@ -50,8 +51,10 @@ python -m pytest
 ## Scope and next phase
 
 Phase 1 demonstrates measurable supervised learning and persistent experiment
-memory. It does not yet implement a language-model reasoning engine, curiosity,
-autonomous control loop, web research, decision-making, or self-modification.
-Phase 2 should add provider-neutral reasoning and question-generation
-interfaces, backed by tests and explicit uncertainty handling, without merging
-those concerns into the training pipeline.
+memory. Phase 2 adds offline structured reasoning, ranked question proposals,
+and configurable action scoring. It does not implement autonomous continuous
+operation, web research, fine-tuning, or self-modification.
+
+The default `LocalMockProvider` is deterministic and requires no credentials.
+Future providers must read credentials from environment variables such as
+`AAB_MODEL_API_KEY`; secrets are never stored in source files.
