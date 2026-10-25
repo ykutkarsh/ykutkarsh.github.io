@@ -21,6 +21,7 @@ interfaces and evaluation requirements.
 | `aab/brain/` | Provider-neutral reasoning, curiosity, and reversible decision selection. |
 | `aab/autonomy/` | Bounded control loop, task history, lifecycle hooks, and resource limits. |
 | `aab/research/` | Read-only public search, bounded page retrieval, source assessment, and citations. |
+| `aab/learning/` | Prediction/outcome tracking, recurring-error analysis, and benchmark-gated strategy comparison. |
 | `tests/` | Verifies learning, cognition, evaluation, and persistence. |
 
 The storage interface is intentionally independent of the model so later
@@ -58,6 +59,12 @@ and configurable action scoring. Phase 3 adds bounded autonomous coordination
 with duplicate-task prevention, pause/resume hooks, shutdown, and finite
 resource limits. It does not implement web research, fine-tuning, or
 self-modification.
+
+Phase 5 adds experience-based evaluation without claiming unrestricted learning:
+predictions are compared with separately supplied outcomes, recurring errors are
+counted, alternative strategies are proposed, and benchmark results determine
+whether a candidate strategy outperforms a baseline. Neural-network training
+and model replacement remain separate concerns.
 
 The default `LocalMockProvider` is deterministic and requires no credentials.
 Future providers must read credentials from environment variables such as
