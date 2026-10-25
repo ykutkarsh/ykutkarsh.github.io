@@ -22,6 +22,9 @@ interfaces and evaluation requirements.
 | `aab/autonomy/` | Bounded control loop, task history, lifecycle hooks, and resource limits. |
 | `aab/research/` | Read-only public search, bounded page retrieval, source assessment, and citations. |
 | `aab/learning/` | Prediction/outcome tracking, recurring-error analysis, and benchmark-gated strategy comparison. |
+| `aab/learning/dataset.py` | Validates explicitly verified examples for controlled training. |
+| `aab/learning/fine_tuning.py` | Trains an isolated candidate copy of the current model. |
+| `aab/learning/model_registry.py` | Stores immutable checkpoint versions and gates candidate acceptance. |
 | `tests/` | Verifies learning, cognition, evaluation, and persistence. |
 
 The storage interface is intentionally independent of the model so later
@@ -59,6 +62,11 @@ and configurable action scoring. Phase 3 adds bounded autonomous coordination
 with duplicate-task prevention, pause/resume hooks, shutdown, and finite
 resource limits. It does not implement web research, fine-tuning, or
 self-modification.
+
+Phase 6 adds controlled self-training infrastructure: unverified examples are
+rejected, candidate weights are trained in a copy, checkpoints are versioned
+with metadata, and candidates are compared with a baseline on an independent
+evaluation set. No candidate automatically replaces the primary model.
 
 Phase 5 adds experience-based evaluation without claiming unrestricted learning:
 predictions are compared with separately supplied outcomes, recurring errors are
